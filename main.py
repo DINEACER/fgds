@@ -78,7 +78,6 @@ async def register_process(msg, promo, user):
         login = (user.username if user.username else f"U{user.id}")[:8].upper()
         password = f"{login[:3]}!{random.randint(1000,9999)}"
         
-        # Передаем промокод в поле reqCode, чтобы гугл-таблица его увидела и выдала VIP!
         payload = {
             "chatId": msg.chat.id, 
             "login": login, 
@@ -87,15 +86,39 @@ async def register_process(msg, promo, user):
         }
         
         res = api_call("register", payload)
+        
+        # --- ПРОВЕРКА ЕСЛИ ПРОМОКОД НЕ ВЕРНЫЙ ИЛИ ИСТЕК ---
+        if res.get("status") == "promo_error":
+            reason = res.get("reason")
+            if reason == "PROMO_EXPIRED":
+                text = "❌ <b>Этот промокод больше не работает (закончились лимиты).</b>\n\nВведи другой промокод или нажмите кнопку ниже:"
+            else:
+                text = "❌ <b>Промокод или реферальный код не найден!</b>\n\nПроверь правильность написания и отправь еще раз. Если кода нет, жми кнопку:"
+                
+            kb = types.InlineKeyboardMarkup(inline_keyboard=[[types.InlineKeyboardButton(text="🚫 Нет промокода", callback_data="skip")]])
+            
+            # Отправляем сообщение об ошибке с картинкой
+            await bot.send_photo(msg.chat.id, photo=IMAGE_URL, caption=text, reply_markup=kb, parse_mode="HTML")
+            return # Выходим, аккаунт в таблице НЕ создался
+            
+        # --- ЕСЛИ ВСЕ ОК, РЕГИСТРИРУЕМ ---
         final_ref = res.get("ref") if res.get("status") == "ok" else f"{login}{random.randint(1000,9999)}"
         
+        # Проверяем, какой бонус дал промокод
+        promo_note = ""
+        if res.get("promoStatus") == "PROMO_OK":
+            promo_note = "\n🎁 <b>Промокод успешно применен!</b>"
+        elif res.get("promoStatus") == "REF_OK":
+            promo_note = "\n👥 <b>Реферальный бонус активирован! (+15% скидка)</b>"
+
         caption = (
-            f"🎉 <b>Регистрация завершена!</b>\n\n"
+            f"🎉 <b>Регистрация завершена!</b>{promo_note}\n\n"
             f"🔑 <b>Логин:</b> <code>{login}</code>\n"
             f"🔑 <b>Пароль:</b> <code>{password}</code>\n"
             f"🎟 <b>Реф:</b> <code>{final_ref}</code>"
         )
         await bot.send_photo(msg.chat.id, photo=IMAGE_URL, caption=caption, parse_mode="HTML")
+        
     except Exception as e:
         print(f"Ошибка при регистрации: {e}")
     finally:
