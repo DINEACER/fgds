@@ -65,10 +65,16 @@ async def register_process(msg, promo, user):
     )
     await bot.send_photo(msg.chat.id, photo=IMAGE_URL, caption=caption, parse_mode="HTML")
 
+# ... (весь твой код до функции main)
+
 async def main():
-    print("Бот запущен и готов к работе!")
-    await bot.delete_webhook(drop_pending_updates=True)
-    await dp.start_polling(bot)
+    try:
+        print("Попытка запуска бота...")
+        await bot.delete_webhook(drop_pending_updates=True)
+        print("Webhook удален, запуск поллинга...")
+        await dp.start_polling(bot)
+    except Exception as e:
+        print(f"КРИТИЧЕСКАЯ ОШИБКА: {e}")
 
 if __name__ == "__main__":
     asyncio.run(main())
