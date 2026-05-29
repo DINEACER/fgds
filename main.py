@@ -5,7 +5,7 @@ from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
 
 # КОНФИГ
-TOKEN = "8709985175:AAFgqaXrgyN4LnYD74Pd95ypj58AVx5qSWg"
+TOKEN = "BOT_TOKEN"
 GAS_URL = "https://script.google.com/macros/s/AKfycbweAA6W4pDVF7bg3w6J2EqPrFFvcrsbJw5gy4_MshYxu-ZuXxjfgTT04zHvTm4Zf1PB/exec"
 IMAGE_URL = "https://docs.google.com/uc?export=view&id=1n34el_Xj4XufJavILI1h3cJUNu76rsmd"
 
