@@ -7,26 +7,24 @@ import requests
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
 
-# --- МИНИ-ВЕБ-СЕРВЕР ДЛЯ ОБХОДА ПРОВЕРОК KOYEB ---
+# --- МИНИ ВЕБ-СЕРВЕР ДЛЯ RENDER ---
 class HealthCheckHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
         self.send_header("Content-type", "text/html")
         self.end_headers()
-        self.wfile.write(b"Bot is running 24/7!")
-
+        self.wfile.write(b"Bot is online!")
     def log_message(self, format, *args):
-        return  # Отключаем лишний спам в логах
+        return
 
 def run_health_server():
-    # Koyeb передает порт в переменную окружения PORT. Если её нет, берем 8000
+    # Render сам передает нужный порт в переменную PORT
     port = int(os.getenv("PORT", 8000))
     server = HTTPServer(("0.0.0.0", port), HealthCheckHandler)
-    print(f"Health-check сервер запущен на порту {port}")
     server.serve_forever()
-# ------------------------------------------------
+# ----------------------------------
 
-# КОНФИГ (Берем токен из переменных окружения для безопасности)
+# КОНФИГ (Токен выносим в настройки для безопасности)
 TOKEN = os.getenv("BOT_TOKEN")
 GAS_URL = "https://script.google.com/macros/s/AKfycbweAA6W4pDVF7bg3w6J2EqPrFFvcrsbJw5gy4_MshYxu-ZuXxjfgTT04zHvTm4Zf1PB/exec"
 IMAGE_URL = "https://docs.google.com/uc?export=view&id=1n34el_Xj4XufJavILI1h3cJUNu76rsmd"
@@ -82,10 +80,9 @@ async def register_process(msg, promo, user):
     await bot.send_photo(msg.chat.id, photo=IMAGE_URL, caption=caption, parse_mode="HTML")
 
 async def main():
-    # Запускаем наш фейковый веб-сервер в фоновом потоке
+    # Запускаем сайт-обманку для Render
     threading.Thread(target=run_health_server, daemon=True).start()
-    
-    # Запускаем самого бота
+    # Запускаем бота
     await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot)
 
