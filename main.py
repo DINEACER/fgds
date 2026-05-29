@@ -1,12 +1,33 @@
-import os
 import asyncio
 import random
+import os
+import threading
+from http.server import BaseHTTPRequestHandler, HTTPServer
 import requests
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
 
-# КОНФИГ
-TOKEN = "BOT_TOKEN"
+# --- МИНИ-ВЕБ-СЕРВЕР ДЛЯ ОБХОДА ПРОВЕРОК KOYEB ---
+class HealthCheckHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header("Content-type", "text/html")
+        self.end_headers()
+        self.wfile.write(b"Bot is running 24/7!")
+
+    def log_message(self, format, *args):
+        return  # Отключаем лишний спам в логах
+
+def run_health_server():
+    # Koyeb передает порт в переменную окружения PORT. Если её нет, берем 8000
+    port = int(os.getenv("PORT", 8000))
+    server = HTTPServer(("0.0.0.0", port), HealthCheckHandler)
+    print(f"Health-check сервер запущен на порту {port}")
+    server.serve_forever()
+# ------------------------------------------------
+
+# КОНФИГ (Берем токен из переменных окружения для безопасности)
+TOKEN = os.getenv("BOT_TOKEN")
 GAS_URL = "https://script.google.com/macros/s/AKfycbweAA6W4pDVF7bg3w6J2EqPrFFvcrsbJw5gy4_MshYxu-ZuXxjfgTT04zHvTm4Zf1PB/exec"
 IMAGE_URL = "https://docs.google.com/uc?export=view&id=1n34el_Xj4XufJavILI1h3cJUNu76rsmd"
 
@@ -26,8 +47,6 @@ async def start(msg: types.Message):
     user = api_call("checkUser", {"chatId": msg.chat.id, "username": login_name})
     
     if user.get("exists"):
-        # ТУТ ПРОВЕРЯЕМ, ЧТО ПРИХОДИТ В user
-        # Если API отдает 'login' и 'pass', то выводим их
         caption = (
             f"✨ <b>С возвращением!</b>\n\n"
             f"🔑 <b>Логин:</b> <code>{user.get('login', 'Не найден')}</code>\n"
@@ -35,7 +54,6 @@ async def start(msg: types.Message):
         )
         await bot.send_photo(msg.chat.id, photo=IMAGE_URL, caption=caption, parse_mode="HTML")
     else:
-        # ... (код для регистрации)
         kb = types.InlineKeyboardMarkup(inline_keyboard=[[types.InlineKeyboardButton(text="🚫 Нет промокода", callback_data="skip")]])
         await bot.send_photo(msg.chat.id, photo=IMAGE_URL, caption="👋 <b>Привет!</b> Введи промокод:", reply_markup=kb, parse_mode="HTML")
 
@@ -53,7 +71,6 @@ async def register_process(msg, promo, user):
     password = f"{login[:3]}!{random.randint(1000,9999)}"
     ref = f"{login}{random.randint(1000,9999)}"
     
-    # Отправляем chatId, который попадет в Q
     api_call("register", {"chatId": msg.chat.id, "login": login, "pass": password, "ref": ref})
     
     caption = (
@@ -65,6 +82,10 @@ async def register_process(msg, promo, user):
     await bot.send_photo(msg.chat.id, photo=IMAGE_URL, caption=caption, parse_mode="HTML")
 
 async def main():
+    # Запускаем наш фейковый веб-сервер в фоновом потоке
+    threading.Thread(target=run_health_server, daemon=True).start()
+    
+    # Запускаем самого бота
     await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot)
 
