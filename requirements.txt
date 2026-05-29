@@ -1,3 +1,2 @@
---upgrade pip
 aiogram
 requests
