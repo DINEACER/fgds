@@ -1,28 +1,10 @@
 import asyncio
 import random
 import os
-import threading
-from http.server import BaseHTTPRequestHandler, HTTPServer
 import requests
+from aiohttp import web
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
-
-# --- МИНИ ВЕБ-СЕРВЕР ДЛЯ RENDER (ЧТОБЫ БОТ РАБОТАЛ КРУГЛОСУТОЧНО) ---
-class HealthCheckHandler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        self.send_response(200)
-        self.send_header("Content-type", "text/html")
-        self.end_headers()
-        self.wfile.write(b"Bot is online!")
-    def log_message(self, format, *args):
-        return
-
-def run_health_server():
-    # Render автоматически передает порт в переменную PORT, если ее нет — берем 8000
-    port = int(os.getenv("PORT", 8000))
-    server = HTTPServer(("0.0.0.0", port), HealthCheckHandler)
-    server.serve_forever()
-# -----------------------------------------------------------------
 
 # КОНФИГ
 TOKEN = "8709985175:AAFgqaXrgyN4LnYD74Pd95ypj58AVx5qSWg"
@@ -87,7 +69,6 @@ async def register_process(msg, promo, user):
         
         res = api_call("register", payload)
         
-        # --- ПРОВЕРКА ЕСЛИ ПРОМОКОД НЕ ВЕРНЫЙ ИЛИ ИСТЕК ---
         if res.get("status") == "promo_error":
             reason = res.get("reason")
             if reason == "PROMO_EXPIRED":
@@ -96,15 +77,11 @@ async def register_process(msg, promo, user):
                 text = "❌ <b>Промокод или реферальный код не найден!</b>\n\nПроверь правильность написания и отправь еще раз. Если кода нет, жми кнопку:"
                 
             kb = types.InlineKeyboardMarkup(inline_keyboard=[[types.InlineKeyboardButton(text="🚫 Нет промокода", callback_data="skip")]])
-            
-            # Отправляем сообщение об ошибке с картинкой
             await bot.send_photo(msg.chat.id, photo=IMAGE_URL, caption=text, reply_markup=kb, parse_mode="HTML")
-            return # Выходим, аккаунт в таблице НЕ создался
+            return
             
-        # --- ЕСЛИ ВСЕ ОК, РЕГИСТРИРУЕМ ---
         final_ref = res.get("ref") if res.get("status") == "ok" else f"{login}{random.randint(1000,9999)}"
         
-        # Проверяем, какой бонус дал промокод
         promo_note = ""
         if res.get("promoStatus") == "PROMO_OK":
             promo_note = "\n🎁 <b>Промокод успешно применен!</b>"
@@ -118,17 +95,30 @@ async def register_process(msg, promo, user):
             f"🎟 <b>Реф:</b> <code>{final_ref}</code>"
         )
         await bot.send_photo(msg.chat.id, photo=IMAGE_URL, caption=caption, parse_mode="HTML")
-        
     except Exception as e:
         print(f"Ошибка при регистрации: {e}")
     finally:
         processing_users.discard(user.id)
 
+# --- АСИНХРОННЫЙ ВЕБ-СЕРВЕР ДЛЯ RENDER ---
+async def handle_health(request):
+    return web.Response(text="Bot is online!")
+
+async def start_web_server():
+    app = web.Application()
+    app.router.add_get('/', handle_health)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    port = int(os.getenv("PORT", 8000))
+    site = web.TCPSite(runner, '0.0.0.0', port)
+    await site.start()
+    print(f"Веб-сервер запущен на порту {port}")
+
 async def main():
-    # 1. Запускаем фоновый веб-сервер для Render
-    threading.Thread(target=run_health_server, daemon=True).start()
+    # Запускаем веб-сервер без всяких тредов
+    await start_web_server()
     
-    # 2. Запускаем бота
+    # Запускаем бота
     await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot)
 
